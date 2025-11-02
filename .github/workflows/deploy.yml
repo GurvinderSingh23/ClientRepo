@@ -25,7 +25,7 @@ jobs:
 
       - name: Pull latest image
         run: |
-          docker pull your-dockerhub-username/your-app-name:latest
+          docker pull singhgurvinder23/testfastapipython
 
       - name: Stop existing containers
         run: |
