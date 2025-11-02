@@ -1,13 +1,15 @@
-name: Deploy FastAPI Application
+name: Deploy FastAPI Application (Simple)
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-  # Optional: trigger on schedule to auto-update
-  schedule:
-    - cron: '0 2 * * *'  # Daily at 2 AM
+
+env:
+  CONTAINER_NAME: fastapi-production
+  IMAGE_NAME: singhgurvinder23/testfastapipython
+  PORT: 8000
 
 jobs:
   deploy:
@@ -17,12 +19,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Docker Compose V1 (if needed)
-        run: |
-          sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker-compose --version
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -31,29 +27,57 @@ jobs:
 
       - name: Pull latest image
         run: |
-          docker pull singhgurvinder23/testfastapipython:latest
+          docker pull ${{ env.IMAGE_NAME }}:latest
 
-      - name: Stop existing containers
+      - name: Stop and remove existing container
         run: |
-          docker compose down || true
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
 
-      - name: Start services
+      - name: Run new container
         run: |
-          docker compose up -d
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            -p ${{ env.PORT }}:8000 \
+            -e ENVIRONMENT=production \
+            ${{ env.IMAGE_NAME }}:latest
 
-      - name: Wait for service to be healthy
+      - name: Wait for container to be healthy
         run: |
-          timeout 60 bash -c 'until docker inspect --format="{{.State.Health.Status}}" fastapi-production | grep -q healthy; do sleep 2; done'
+          echo "Waiting for container to start..."
+          sleep 10
+          
+          # Check if container is running
+          if ! docker ps | grep -q ${{ env.CONTAINER_NAME }}; then
+            echo "Container failed to start"
+            docker logs ${{ env.CONTAINER_NAME }}
+            exit 1
+          fi
 
       - name: Verify deployment
         run: |
-          curl -f http://localhost:8000/health || exit 1
+          echo "Testing health endpoint..."
+          for i in {1..30}; do
+            if curl -f http://localhost:${{ env.PORT }}/health; then
+              echo "Service is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 2
+          done
+          echo "Service health check failed"
+          exit 1
 
       - name: Show running containers
         run: |
-          docker ps
+          docker ps -a
 
-      - name: Show logs
-        if: failure()
+      - name: Show container logs
+        if: always()
         run: |
-          docker compose logs --tail=100
+          docker logs --tail=100 ${{ env.CONTAINER_NAME }} || true
+
+      - name: Cleanup old images
+        run: |
+          docker image prune -af || true
