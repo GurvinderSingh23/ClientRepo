@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   fastapi-app:
-    image: your-dockerhub-username/your-app-name:latest
+    image: singhgurvinder23/testfastapipython:latest
     container_name: fastapi-production
     restart: unless-stopped
     ports:
