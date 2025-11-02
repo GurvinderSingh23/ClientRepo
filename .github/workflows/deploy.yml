@@ -25,15 +25,15 @@ jobs:
 
       - name: Pull latest image
         run: |
-          docker pull singhgurvinder23/testfastapipython
+          docker pull your-dockerhub-username/your-app-name:latest
 
       - name: Stop existing containers
         run: |
-          docker-compose down || true
+          docker compose down || true
 
       - name: Start services
         run: |
-          docker-compose up -d
+          docker compose up -d
 
       - name: Wait for service to be healthy
         run: |
