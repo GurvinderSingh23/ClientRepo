@@ -1,0 +1,53 @@
+name: Deploy FastAPI Application
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  # Optional: trigger on schedule to auto-update
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Pull latest image
+        run: |
+          docker pull your-dockerhub-username/your-app-name:latest
+
+      - name: Stop existing containers
+        run: |
+          docker-compose down || true
+
+      - name: Start services
+        run: |
+          docker-compose up -d
+
+      - name: Wait for service to be healthy
+        run: |
+          timeout 60 bash -c 'until docker inspect --format="{{.State.Health.Status}}" fastapi-production | grep -q healthy; do sleep 2; done'
+
+      - name: Verify deployment
+        run: |
+          curl -f http://localhost:8000/health || exit 1
+
+      - name: Show running containers
+        run: |
+          docker ps
+
+      - name: Show logs
+        if: failure()
+        run: |
+          docker-compose logs --tail=100
